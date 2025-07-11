@@ -5,7 +5,6 @@ package provider
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -14,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Ensure ShellyProvider satisfies various provider interfaces.
 var _ provider.Provider = &ShellyProvider{}
 
 // ShellyProvider defines the provider implementation.
@@ -63,10 +61,8 @@ func (p *ShellyProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		return
 	}
 
-	client := http.DefaultClient
-	resp.DataSourceData = map[string]interface{}{
-		"ip":     data.IP.ValueString(),
-		"client": client,
+	resp.DataSourceData = map[string]any{
+		"ip": data.IP.ValueString(),
 	}
 	resp.ResourceData = resp.DataSourceData
 }

@@ -2,18 +2,18 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jcodybaker/go-shelly"
+	"github.com/mongoose-os/mos/common/mgrpc"
 )
 
 type ShellyVersionDataSource struct {
-	ip     string
-	client *http.Client
+	ip string
 }
 
 type ShellyVersionModel struct {
@@ -53,39 +53,39 @@ func (d *ShellyVersionDataSource) Configure(ctx context.Context, req datasource.
 		resp.Diagnostics.AddError("Missing IP", "Provider did not supply a valid IP address.")
 		return
 	}
-	client, ok := providerData["client"].(*http.Client)
-	if !ok {
-		resp.Diagnostics.AddError("HTTP client error", "Could not get HTTP client from provider data.")
-		return
-	}
 	d.ip = ip
-	d.client = client
 }
 
 func (d *ShellyVersionDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	data := &ShellyVersionModel{}
 
-	if d.ip == "" || d.client == nil {
+	if d.ip == "" {
 		resp.Diagnostics.AddError("Not configured", "The data source is not configured with provider data.")
 		return
 	}
 
-	url := fmt.Sprintf("http://%s/rpc/Shelly.GetStatus", d.ip)
-	respHTTP, err := d.client.Get(url)
+	statusReq := &shelly.ShellyGetConfigRequest{}
+	rpcAddr := fmt.Sprintf("http://%s/rpc", d.ip)
+	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	fmt.Printf("[ShellyVersionDataSource] Creating mgrpc client for %s\n", rpcAddr)
+	c, err := mgrpc.New(ctxTimeout, rpcAddr, mgrpc.UseHTTPPost())
 	if err != nil {
-		resp.Diagnostics.AddError("HTTP request failed", err.Error())
+		resp.Diagnostics.AddError("Failed to establish RPC channel", err.Error())
+		fmt.Printf("[ShellyVersionDataSource] RPC client error: %v\n", err)
 		return
 	}
-	defer respHTTP.Body.Close()
-
-	var result map[string]interface{}
-	if err := json.NewDecoder(respHTTP.Body).Decode(&result); err != nil {
-		resp.Diagnostics.AddError("Failed to decode response", err.Error())
+	defer c.Disconnect(ctxTimeout)
+	fmt.Printf("[ShellyVersionDataSource] Making RPC call with client: %v\n", c)
+	statusResp, _, err := statusReq.Do(ctxTimeout, c, nil)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to query device status", err.Error())
+		fmt.Printf("[ShellyVersionDataSource] RPC error: %v\n", err)
 		return
 	}
 
-	version, ok := result["fw_id"].(string)
-	if !ok {
+	version := statusResp.System.Device.FW_ID
+	if version == "" {
 		resp.Diagnostics.AddError("Version not found", "Could not find 'fw_id' in response.")
 		return
 	}
