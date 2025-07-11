@@ -7,7 +7,7 @@ import (
 	"context"
 	"flag"
 	"log"
-	"terraform-provider-shelly/internal/provider"
+	"terraform-provider-shelly-provider/internal/provider"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
