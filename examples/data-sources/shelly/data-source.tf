@@ -8,11 +8,12 @@ terraform {
 
 
 provider "shelly" {
-  ip = "192.168.1.169"
 }
 
-data "shelly_version" "example" {}
+data "shelly_device" "example" {
+    ip = "192.168.1.169"
+}
 
 output "shelly_fw_version" {
-  value = data.shelly_version.example.version
+  value = data.shelly_device.example.version
 }

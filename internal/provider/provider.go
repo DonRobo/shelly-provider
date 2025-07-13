@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ provider.Provider = &ShellyProvider{}
@@ -25,7 +24,6 @@ type ShellyProvider struct {
 
 // ShellyProviderModel describes the provider data model.
 type ShellyProviderModel struct {
-	IP types.String `tfsdk:"ip"`
 }
 
 func (p *ShellyProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -35,12 +33,7 @@ func (p *ShellyProvider) Metadata(ctx context.Context, req provider.MetadataRequ
 
 func (p *ShellyProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Attributes: map[string]schema.Attribute{
-			"ip": schema.StringAttribute{
-				MarkdownDescription: "IP address of the Shelly.",
-				Required:            true,
-			},
-		},
+		Attributes: map[string]schema.Attribute{},
 	}
 }
 
@@ -52,19 +45,6 @@ func (p *ShellyProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	if data.IP.IsNull() || data.IP.IsUnknown() {
-		resp.Diagnostics.AddError(
-			"Missing IP address",
-			"The provider requires an 'ip' attribute specifying the Shelly Gen2 device IP.",
-		)
-		return
-	}
-
-	resp.DataSourceData = map[string]any{
-		"ip": data.IP.ValueString(),
-	}
-	resp.ResourceData = resp.DataSourceData
 }
 
 func (p *ShellyProvider) Resources(ctx context.Context) []func() resource.Resource {
@@ -73,7 +53,7 @@ func (p *ShellyProvider) Resources(ctx context.Context) []func() resource.Resour
 
 func (p *ShellyProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewShellyVersionDataSource,
+		NewShellyDeviceDataSource,
 	}
 }
 
