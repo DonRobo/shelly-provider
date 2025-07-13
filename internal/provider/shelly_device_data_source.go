@@ -20,6 +20,7 @@ type ShellyDeviceDataSource struct {
 
 type ShellyDeviceModel struct {
 	IP      types.String `tfsdk:"ip"`
+	MAC     types.String `tfsdk:"mac"`
 	Version types.String `tfsdk:"version"`
 }
 
@@ -36,11 +37,15 @@ func (d *ShellyDeviceDataSource) Schema(ctx context.Context, req datasource.Sche
 		Attributes: map[string]schema.Attribute{
 			"ip": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The IP address of the Shelly Gen2 device.",
+				MarkdownDescription: "The IP address of the device.",
 			},
 			"version": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The firmware version of the Shelly Gen2 device.",
+				MarkdownDescription: "The firmware version the device.",
+			},
+			"mac": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The MAC address of the device.",
 			},
 		},
 	}
@@ -59,7 +64,7 @@ func (d *ShellyDeviceDataSource) Read(ctx context.Context, req datasource.ReadRe
 	}
 
 	// Do RPC call
-	statusReq := &shelly.ShellyGetConfigRequest{}
+	statusReq := &shelly.SysGetConfigRequest{}
 	rpcAddr := fmt.Sprintf("http://%s/rpc", data.IP.ValueString())
 	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -79,14 +84,19 @@ func (d *ShellyDeviceDataSource) Read(ctx context.Context, req datasource.ReadRe
 		return
 	}
 
-	version := statusResp.System.Device.FW_ID
-	if version == "" {
-		resp.Diagnostics.AddError("Version not found", "Could not find 'fw_id' in response.")
+	data.Version = types.StringValue(statusResp.Device.FW_ID)
+	if data.Version.IsNull() || data.Version.IsUnknown() || data.Version.ValueString() == "" {
+		resp.Diagnostics.AddError("Version not found", "Could not find valid firmware version in response.")
+		return
+	}
+
+	data.MAC = types.StringValue(statusResp.Device.Mac)
+	if data.MAC.IsNull() || data.MAC.IsUnknown() || data.MAC.ValueString() == "" {
+		resp.Diagnostics.AddError("MAC address not found", "Could not find valid MAC address in response.")
 		return
 	}
 
 	// Write to state
-	data.Version = types.StringValue(version)
 	diags = resp.State.Set(ctx, data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

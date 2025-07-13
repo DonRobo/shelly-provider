@@ -48,7 +48,9 @@ func (p *ShellyProvider) Configure(ctx context.Context, req provider.ConfigureRe
 }
 
 func (p *ShellyProvider) Resources(ctx context.Context) []func() resource.Resource {
-	return []func() resource.Resource{}
+	return []func() resource.Resource{
+		NewConfigResource,
+	}
 }
 
 func (p *ShellyProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
