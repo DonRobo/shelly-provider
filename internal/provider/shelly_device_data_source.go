@@ -3,11 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
-	diag "github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jcodybaker/go-shelly"
 	"github.com/mongoose-os/mos/common/mgrpc"
@@ -55,24 +53,6 @@ func (d *ShellyDeviceDataSource) Schema(ctx context.Context, req datasource.Sche
 func (d *ShellyDeviceDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 }
 
-func withShellyRPC(ctx context.Context, ip types.String, diags *diag.Diagnostics, logPrefix string, rpcFunc func(ctxTimeout context.Context, client mgrpc.MgRPC) error) {
-	rpcAddr := fmt.Sprintf("http://%s/rpc", ip.ValueString())
-	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	fmt.Printf("[%s] Creating mgrpc client for %s\n", logPrefix, rpcAddr)
-	client, err := mgrpc.New(ctxTimeout, rpcAddr, mgrpc.UseHTTPPost())
-	if err != nil {
-		diags.AddError("Failed to establish RPC channel", err.Error())
-		fmt.Printf("[%s] RPC client error: %v\n", logPrefix, err)
-		return
-	}
-	defer client.Disconnect(ctxTimeout)
-	fmt.Printf("[%s] Making RPC call with client: %v\n", logPrefix, client)
-	if err := rpcFunc(ctxTimeout, client); err != nil {
-		fmt.Printf("[%s] RPC error: %v\n", logPrefix, err)
-	}
-}
-
 func (d *ShellyDeviceDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	data := &ShellyDeviceModel{}
 
@@ -82,7 +62,7 @@ func (d *ShellyDeviceDataSource) Read(ctx context.Context, req datasource.ReadRe
 		return
 	}
 
-	withShellyRPC(ctx, data.IP, &resp.Diagnostics, "ShellyDeviceDataSource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
+	WithShellyRPC(ctx, data.IP, &resp.Diagnostics, "ShellyDeviceDataSource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
 		statusReq := &shelly.SysGetConfigRequest{}
 		statusResp, _, err := statusReq.Do(ctxTimeout, client, nil)
 		if err != nil {
