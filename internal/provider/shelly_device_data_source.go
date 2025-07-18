@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	diag "github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jcodybaker/go-shelly"
 	"github.com/mongoose-os/mos/common/mgrpc"
@@ -54,6 +55,24 @@ func (d *ShellyDeviceDataSource) Schema(ctx context.Context, req datasource.Sche
 func (d *ShellyDeviceDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 }
 
+func withShellyRPC(ctx context.Context, ip types.String, diags *diag.Diagnostics, logPrefix string, rpcFunc func(ctxTimeout context.Context, client mgrpc.MgRPC) error) {
+	rpcAddr := fmt.Sprintf("http://%s/rpc", ip.ValueString())
+	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	fmt.Printf("[%s] Creating mgrpc client for %s\n", logPrefix, rpcAddr)
+	client, err := mgrpc.New(ctxTimeout, rpcAddr, mgrpc.UseHTTPPost())
+	if err != nil {
+		diags.AddError("Failed to establish RPC channel", err.Error())
+		fmt.Printf("[%s] RPC client error: %v\n", logPrefix, err)
+		return
+	}
+	defer client.Disconnect(ctxTimeout)
+	fmt.Printf("[%s] Making RPC call with client: %v\n", logPrefix, client)
+	if err := rpcFunc(ctxTimeout, client); err != nil {
+		fmt.Printf("[%s] RPC error: %v\n", logPrefix, err)
+	}
+}
+
 func (d *ShellyDeviceDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	data := &ShellyDeviceModel{}
 
@@ -63,43 +82,32 @@ func (d *ShellyDeviceDataSource) Read(ctx context.Context, req datasource.ReadRe
 		return
 	}
 
-	// Do RPC call
-	statusReq := &shelly.SysGetConfigRequest{}
-	rpcAddr := fmt.Sprintf("http://%s/rpc", data.IP.ValueString())
-	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	fmt.Printf("[ShellyDeviceDataSource] Creating mgrpc client for %s\n", rpcAddr)
-	c, err := mgrpc.New(ctxTimeout, rpcAddr, mgrpc.UseHTTPPost())
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to establish RPC channel", err.Error())
-		fmt.Printf("[ShellyDeviceDataSource] RPC client error: %v\n", err)
-		return
-	}
-	defer c.Disconnect(ctxTimeout)
-	fmt.Printf("[ShellyDeviceDataSource] Making RPC call with client: %v\n", c)
-	statusResp, _, err := statusReq.Do(ctxTimeout, c, nil)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to query device status", err.Error())
-		fmt.Printf("[ShellyDeviceDataSource] RPC error: %v\n", err)
-		return
-	}
+	withShellyRPC(ctx, data.IP, &resp.Diagnostics, "ShellyDeviceDataSource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
+		statusReq := &shelly.SysGetConfigRequest{}
+		statusResp, _, err := statusReq.Do(ctxTimeout, client, nil)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to query device status", err.Error())
+			return err
+		}
 
-	data.Version = types.StringValue(statusResp.Device.FW_ID)
-	if data.Version.IsNull() || data.Version.IsUnknown() || data.Version.ValueString() == "" {
-		resp.Diagnostics.AddError("Version not found", "Could not find valid firmware version in response.")
-		return
-	}
+		data.Version = types.StringValue(statusResp.Device.FW_ID)
+		if data.Version.IsNull() || data.Version.IsUnknown() || data.Version.ValueString() == "" {
+			resp.Diagnostics.AddError("Version not found", "Could not find valid firmware version in response.")
+			return fmt.Errorf("version not found")
+		}
 
-	data.MAC = types.StringValue(statusResp.Device.Mac)
-	if data.MAC.IsNull() || data.MAC.IsUnknown() || data.MAC.ValueString() == "" {
-		resp.Diagnostics.AddError("MAC address not found", "Could not find valid MAC address in response.")
-		return
-	}
+		data.MAC = types.StringValue(statusResp.Device.Mac)
+		if data.MAC.IsNull() || data.MAC.IsUnknown() || data.MAC.ValueString() == "" {
+			resp.Diagnostics.AddError("MAC address not found", "Could not find valid MAC address in response.")
+			return fmt.Errorf("mac not found")
+		}
 
-	// Write to state
-	diags = resp.State.Set(ctx, data)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+		// Write to state
+		diags = resp.State.Set(ctx, data)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return fmt.Errorf("state set error")
+		}
+		return nil
+	})
 }

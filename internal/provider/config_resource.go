@@ -2,9 +2,8 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -58,38 +57,71 @@ func (c *configResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	// Do RPC call
 	statusReq := &shelly.ShellyGetConfigRequest{}
-	rpcAddr := fmt.Sprintf("http://%s/rpc", state.IP.ValueString())
-	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	fmt.Printf("[ShellyDeviceDataSource] Creating mgrpc client for %s\n", rpcAddr)
-	con, err := mgrpc.New(ctxTimeout, rpcAddr, mgrpc.UseHTTPPost())
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to establish RPC channel", err.Error())
-		fmt.Printf("[ShellyDeviceDataSource] RPC client error: %v\n", err)
+	errResult := error(nil)
+	WithShellyRPC(ctx, state.IP, &resp.Diagnostics, "ConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
+		statusResp, _, err := statusReq.Do(ctxTimeout, client, nil)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to query device status", err.Error())
+			errResult = err
+			return err
+		}
+		if statusResp.System.Device.Name == nil {
+			state.Name = types.StringNull()
+		} else {
+			state.Name = types.StringValue(*statusResp.System.Device.Name)
+		}
+		return nil
+	})
+	if errResult != nil {
 		return
 	}
-	defer con.Disconnect(ctxTimeout)
-	fmt.Printf("[ShellyDeviceDataSource] Making RPC call with client: %v\n", con)
-	statusResp, _, err := statusReq.Do(ctxTimeout, con, nil)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to query device status", err.Error())
-		fmt.Printf("[ShellyDeviceDataSource] RPC error: %v\n", err)
-		return
-	}
-
-	if statusResp.System.Device.Name == nil {
-		state.Name = types.StringNull()
-	} else {
-		state.Name = types.StringValue(*statusResp.System.Device.Name)
-	}
-
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+func setDeviceConfig(ctx context.Context, plan configResourceModel, diags *diag.Diagnostics) error {
+	var deviceConfig shelly.SysDeviceConfig
+	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
+		nameStr := plan.Name.ValueString()
+		deviceConfig.Name = &nameStr
+	}
+	// Add more fields here as you extend configResourceModel
+
+	statusReq := &shelly.SysSetConfigRequest{
+		Config: shelly.SysConfig{
+			Device: &deviceConfig,
+		},
+	}
+
+	errResult := error(nil)
+	WithShellyRPC(ctx, plan.IP, diags, "ConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
+		_, _, err := statusReq.Do(ctxTimeout, client, nil)
+		if err != nil {
+			diags.AddError("Failed to set device config", err.Error())
+			errResult = err
+			return err
+		}
+		return nil
+	})
+	return errResult
+}
+
+func (c *configResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan configResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if err := setDeviceConfig(ctx, plan, &resp.Diagnostics); err != nil {
+		return
+	}
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (c *configResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -99,54 +131,17 @@ func (c *configResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// Do RPC call
-	if plan.Name.IsNull() || plan.Name.IsUnknown() {
-		resp.Diagnostics.AddError("Invalid Name", "The 'name' attribute must be set to a valid string.")
+	if err := setDeviceConfig(ctx, plan, &resp.Diagnostics); err != nil {
 		return
 	}
-	name := plan.Name.ValueString()
-	statusReq := &shelly.SysSetConfigRequest{
-		Config: shelly.SysConfig{
-			Device: &shelly.SysDeviceConfig{
-				Name: &name,
-			},
-		},
-	}
-	rpcAddr := fmt.Sprintf("http://%s/rpc", plan.IP.ValueString())
-	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	fmt.Printf("[ShellyDeviceDataSource] Creating mgrpc client for %s\n", rpcAddr)
-	con, err := mgrpc.New(ctxTimeout, rpcAddr, mgrpc.UseHTTPPost())
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to establish RPC channel", err.Error())
-		fmt.Printf("[ShellyDeviceDataSource] RPC client error: %v\n", err)
-		return
-	}
-	defer con.Disconnect(ctxTimeout)
-	fmt.Printf("[ShellyDeviceDataSource] Making RPC call with client: %v\n", con)
-	_, _, err = statusReq.Do(ctxTimeout, con, nil)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to query device status", err.Error())
-		fmt.Printf("[ShellyDeviceDataSource] RPC error: %v\n", err)
-		return
-	}
-
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (c *configResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("ip"), req, resp)
 }
 
-func (c *configResource) Create(context.Context, resource.CreateRequest, *resource.CreateResponse) {
-	panic("unimplemented")
-}
-
-func (c *configResource) Delete(context.Context, resource.DeleteRequest, *resource.DeleteResponse) {
-	panic("unimplemented")
+func (c *configResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	resp.State.RemoveResource(ctx)
 }
