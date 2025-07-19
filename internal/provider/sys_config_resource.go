@@ -14,27 +14,27 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &configResource{}
-	_ resource.ResourceWithImportState = &configResource{}
+	_ resource.Resource                = &sysConfigResource{}
+	_ resource.ResourceWithImportState = &sysConfigResource{}
 )
 
-func NewConfigResource() resource.Resource {
-	return &configResource{}
+func NewSysConfigResource() resource.Resource {
+	return &sysConfigResource{}
 }
 
-type configResourceModel struct {
+type sysConfigResourceModel struct {
 	IP   types.String `tfsdk:"ip"`
 	Name types.String `tfsdk:"name"`
 }
 
-type configResource struct {
+type sysConfigResource struct {
 }
 
-func (c *configResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_config"
+func (c *sysConfigResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_sys_config"
 }
 
-func (c *configResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (c *sysConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"ip": schema.StringAttribute{
@@ -49,27 +49,27 @@ func (c *configResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 	}
 }
 
-func (c *configResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state configResourceModel
+func (c *sysConfigResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state sysConfigResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	statusReq := &shelly.ShellyGetConfigRequest{}
+	statusReq := &shelly.SysGetConfigRequest{}
 	errResult := error(nil)
-	WithShellyRPC(ctx, state.IP, &resp.Diagnostics, "ConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
+	WithShellyRPC(ctx, state.IP, &resp.Diagnostics, "SysConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
 		statusResp, _, err := statusReq.Do(ctxTimeout, client, nil)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to query device status", err.Error())
 			errResult = err
 			return err
 		}
-		if statusResp.System.Device.Name == nil {
+		if statusResp.Device.Name == nil {
 			state.Name = types.StringNull()
 		} else {
-			state.Name = types.StringValue(*statusResp.System.Device.Name)
+			state.Name = types.StringValue(*statusResp.Device.Name)
 		}
 		return nil
 	})
@@ -83,25 +83,24 @@ func (c *configResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 }
 
-func setDeviceConfig(ctx context.Context, plan configResourceModel, diags *diag.Diagnostics) error {
-	var deviceConfig shelly.SysDeviceConfig
+func setSysConfig(ctx context.Context, plan sysConfigResourceModel, diags *diag.Diagnostics) error {
+	var sysConfig shelly.SysDeviceConfig
 	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
 		nameStr := plan.Name.ValueString()
-		deviceConfig.Name = &nameStr
+		sysConfig.Name = &nameStr
 	}
-	// Add more fields here as you extend configResourceModel
 
 	statusReq := &shelly.SysSetConfigRequest{
 		Config: shelly.SysConfig{
-			Device: &deviceConfig,
+			Device: &sysConfig,
 		},
 	}
 
 	errResult := error(nil)
-	WithShellyRPC(ctx, plan.IP, diags, "ConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
+	WithShellyRPC(ctx, plan.IP, diags, "SysConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
 		_, _, err := statusReq.Do(ctxTimeout, client, nil)
 		if err != nil {
-			diags.AddError("Failed to set device config", err.Error())
+			diags.AddError("Failed to set sys config", err.Error())
 			errResult = err
 			return err
 		}
@@ -110,38 +109,38 @@ func setDeviceConfig(ctx context.Context, plan configResourceModel, diags *diag.
 	return errResult
 }
 
-func (c *configResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan configResourceModel
+func (c *sysConfigResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan sysConfigResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := setDeviceConfig(ctx, plan, &resp.Diagnostics); err != nil {
+	if err := setSysConfig(ctx, plan, &resp.Diagnostics); err != nil {
 		return
 	}
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 }
 
-func (c *configResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan configResourceModel
+func (c *sysConfigResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan sysConfigResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := setDeviceConfig(ctx, plan, &resp.Diagnostics); err != nil {
+	if err := setSysConfig(ctx, plan, &resp.Diagnostics); err != nil {
 		return
 	}
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 }
 
-func (c *configResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (c *sysConfigResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("ip"), req, resp)
 }
 
-func (c *configResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (c *sysConfigResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	resp.State.RemoveResource(ctx)
 }
