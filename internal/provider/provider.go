@@ -51,6 +51,7 @@ func (p *ShellyProvider) Resources(ctx context.Context) []func() resource.Resour
 	return []func() resource.Resource{
 		NewSysConfigResource,
 		NewInputConfigResource,
+		NewSwitchConfigResource,
 	}
 }
 

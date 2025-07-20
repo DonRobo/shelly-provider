@@ -28,6 +28,7 @@ func NewInputConfigResource() resource.Resource {
 type inputConfigResourceModel struct {
 	IP     types.String `tfsdk:"ip"`
 	ID     types.Int32  `tfsdk:"id"`
+	Name   types.String `tfsdk:"name"`
 	Type   types.String `tfsdk:"type"`
 	Invert types.Bool   `tfsdk:"invert"`
 }
@@ -49,6 +50,11 @@ func (c *inputConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"id": schema.Int32Attribute{
 				Required:            true,
 				MarkdownDescription: "The ID of the input to configure.",
+			},
+			"name": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Name of the input instance.",
 			},
 			"type": schema.StringAttribute{
 				Optional:            true,
@@ -86,6 +92,7 @@ func (c *inputConfigResource) Read(ctx context.Context, req resource.ReadRequest
 			errResult = err
 			return err
 		}
+		state.Name = types.StringValue(*statusResp.Name)
 		state.Type = types.StringValue(*statusResp.Type)
 		state.Invert = types.BoolValue(*statusResp.Invert)
 		return nil
@@ -103,6 +110,10 @@ func (c *inputConfigResource) Read(ctx context.Context, req resource.ReadRequest
 func setInputConfig(ctx context.Context, plan inputConfigResourceModel, diags *diag.Diagnostics) error {
 	var inputConfig shelly.InputConfig
 	inputConfig.ID = int(plan.ID.ValueInt32())
+	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
+		nameStr := plan.Name.ValueString()
+		inputConfig.Name = &nameStr
+	}
 	if !plan.Type.IsNull() && !plan.Type.IsUnknown() {
 		typeStr := plan.Type.ValueString()
 		inputConfig.Type = &typeStr
