@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -9,6 +11,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jcodybaker/go-shelly"
@@ -55,6 +60,9 @@ func (c *inputConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "Name of the input instance.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"type": schema.StringAttribute{
 				Optional:            true,
@@ -63,11 +71,17 @@ func (c *inputConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Validators: []validator.String{
 					stringvalidator.OneOf("switch", "button", "analog", "count"),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"invert": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "(only for type switch, button, analog) True if the logical state of the associated input is inverted, false otherwise.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -92,9 +106,15 @@ func (c *inputConfigResource) Read(ctx context.Context, req resource.ReadRequest
 			errResult = err
 			return err
 		}
-		state.Name = types.StringValue(*statusResp.Name)
-		state.Type = types.StringValue(*statusResp.Type)
-		state.Invert = types.BoolValue(*statusResp.Invert)
+		if statusResp.Name != nil {
+			state.Name = types.StringValue(*statusResp.Name)
+		}
+		if statusResp.Type != nil {
+			state.Type = types.StringValue(*statusResp.Type)
+		}
+		if statusResp.Invert != nil {
+			state.Invert = types.BoolValue(*statusResp.Invert)
+		}
 		return nil
 	})
 	if errResult != nil {
@@ -183,8 +203,16 @@ func (c *inputConfigResource) ImportState(ctx context.Context, req resource.Impo
 		return
 	}
 
+	id, err := strconv.Atoi(parts[1])
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Invalid input ID",
+			fmt.Sprintf("Could not convert ID '%s' to integer: %v", parts[1], err),
+		)
+		return
+	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ip"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
 }
 
 func (c *inputConfigResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

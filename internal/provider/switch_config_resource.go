@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -9,6 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jcodybaker/go-shelly"
@@ -56,6 +60,9 @@ func (c *switchConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "Name of the switch instance.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"in_mode": schema.StringAttribute{
 				Optional:            true,
@@ -63,6 +70,9 @@ func (c *switchConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 				MarkdownDescription: "Mode of the associated input",
 				Validators: []validator.String{
 					stringvalidator.OneOf("momentary", "follow", "flip", "detached", "cycle", "activate"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"initial_state": schema.StringAttribute{
@@ -72,12 +82,18 @@ func (c *switchConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 				Validators: []validator.String{
 					stringvalidator.OneOf("off", "on", "restore_last", "match_input"),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			// TODO
 			// "consumption_type": schema.StringAttribute{
 			// 	Optional:            true,
 			// 	Computed:            true,
 			// 	MarkdownDescription: "This setting is mainly used by 3rd party Home Automation systems. Home Assistant supports `light` as an example.",
+			// PlanModifiers: []planmodifier.String{
+			// 	stringplanmodifier.UseStateForUnknown(),
+			// },
 			// },
 		},
 	}
@@ -196,8 +212,18 @@ func (c *switchConfigResource) ImportState(ctx context.Context, req resource.Imp
 		return
 	}
 
+	fmt.Printf("Importing %s. IP=%s, ID=%s\n", req.ID, parts[0], parts[1])
+
+	id, err := strconv.Atoi(parts[1])
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Invalid switch ID",
+			fmt.Sprintf("Could not convert ID '%s' to integer: %v", parts[1], err),
+		)
+		return
+	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ip"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
 }
 
 func (c *switchConfigResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
