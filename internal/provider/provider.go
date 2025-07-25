@@ -34,7 +34,7 @@ func (p *ShellyProvider) Metadata(ctx context.Context, req provider.MetadataRequ
 func (p *ShellyProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "The Shelly provider allows management and configuration of Shelly smart devices via their local network API.",
-		Attributes: map[string]schema.Attribute{},
+		Attributes:          map[string]schema.Attribute{},
 	}
 }
 
