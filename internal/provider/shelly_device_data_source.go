@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -33,6 +36,7 @@ func (d *ShellyDeviceDataSource) Metadata(ctx context.Context, req datasource.Me
 
 func (d *ShellyDeviceDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "The shelly_device data source allows you to query basic information (firmware version, MAC address) from a Shelly device on your network.",
 		Attributes: map[string]schema.Attribute{
 			"ip": schema.StringAttribute{
 				Required:            true,
@@ -40,7 +44,7 @@ func (d *ShellyDeviceDataSource) Schema(ctx context.Context, req datasource.Sche
 			},
 			"version": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The firmware version the device.",
+				MarkdownDescription: "The firmware version of the device.",
 			},
 			"mac": schema.StringAttribute{
 				Computed:            true,

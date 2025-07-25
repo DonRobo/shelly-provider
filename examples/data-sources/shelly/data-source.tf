@@ -11,9 +11,13 @@ provider "shelly" {
 }
 
 data "shelly_device" "example" {
-    ip = "192.168.1.169"
+  ip = "192.168.1.100"
 }
 
-output "shelly_fw_version" {
+output "device_mac" {
+  value = data.shelly_device.example.mac
+}
+
+output "device_version" {
   value = data.shelly_device.example.version
 }

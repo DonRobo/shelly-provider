@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -54,7 +57,7 @@ func (c *inputConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 			},
 			"id": schema.Int32Attribute{
 				Required:            true,
-				MarkdownDescription: "The ID of the input to configure.",
+				MarkdownDescription: "The zero-based ID of the input to configure (e.g., 0 for the first input).",
 			},
 			"name": schema.StringAttribute{
 				Optional:            true,

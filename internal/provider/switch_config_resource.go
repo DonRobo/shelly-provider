@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -54,7 +57,7 @@ func (c *switchConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 			},
 			"id": schema.Int32Attribute{
 				Required:            true,
-				MarkdownDescription: "The ID of the switch to configure.",
+				MarkdownDescription: "The zero-based ID of the switch to configure (e.g., 0 for the first switch).",
 			},
 			"name": schema.StringAttribute{
 				Optional:            true,

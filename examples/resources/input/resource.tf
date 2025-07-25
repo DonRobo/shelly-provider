@@ -1,11 +1,7 @@
-resource "shelly_input_config" "input_config_0" {
-  ip       = "192.168.1.169"
-  id       = 0
-  type     = "switch"
+resource "shelly_input_config" "example" {
+  ip     = "192.168.1.100"
+  id     = 0
+  name   = "Living Room Button"
+  type   = "button"
+  invert = false
 }
-  
-#TODO Support proper error for this:
-# resource "shelly_input_config" "input_config_2" {
-#   ip       = "192.168.1.169"
-#   id       = 2
-# }
