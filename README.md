@@ -1,35 +1,85 @@
-# Terraform Provider Scaffolding (Terraform Plugin Framework)
+# Terraform Provider for Shelly Smart Devices
 
-_This template repository is built on the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework). The template repository built on the [Terraform Plugin SDK](https://github.com/hashicorp/terraform-plugin-sdk) can be found at [terraform-provider-scaffolding](https://github.com/hashicorp/terraform-provider-scaffolding). See [Which SDK Should I Use?](https://developer.hashicorp.com/terraform/plugin/framework-benefits) in the Terraform documentation for additional information._
+This Terraform provider allows you to manage and configure Shelly Gen2 smart devices via their local network API. Built using the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework), it enables Infrastructure as Code management of your Shelly devices.
 
-This repository is a *template* for a [Terraform](https://www.terraform.io) provider. It is intended as a starting point for creating Terraform providers, containing:
+## Features
 
-- A resource and a data source (`internal/provider/`),
-- Examples (`examples/`) and generated documentation (`docs/`),
-- Miscellaneous meta files.
+- **Device Data Source**: Query basic information from Shelly devices on your network
+- **System Configuration**: Configure device names and system settings
+- **Input Configuration**: Configure physical inputs on Shelly devices
+- **Switch Configuration**: Configure relay switches and their behavior
+- **Local Network Communication**: Direct communication with devices without cloud dependency
 
-These files contain boilerplate code that you will need to edit to create your own Terraform provider. Tutorials for creating Terraform providers can be found on the [HashiCorp Developer](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework) platform. _Terraform Plugin Framework specific guides are titled accordingly._
+## Roadmap
 
-Please see the [GitHub template repository documentation](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template) for how to create a new repository from this template on GitHub.
+- **Support for more components**: Will be added as I personally use them. PRs welcome for other components ;)
 
-Once you've written your provider, you'll want to [publish it on the Terraform Registry](https://developer.hashicorp.com/terraform/registry/providers/publishing) so that others can use it.
+
+## Installation
+
+### Terraform Registry (Recommended)
+
+Once published, this provider will be available from the Terraform Registry:
+
+```hcl
+terraform {
+  required_providers {
+    shelly = {
+      source  = "DonRobo/shelly"
+      version = "~> 1.0"
+    }
+  }
+}
+
+provider "shelly" {
+  # Configuration options
+}
+```
+
+### Local Development
+
+For local development or testing:
+
+1. Clone this repository
+2. Build the provider: `make install`
+3. Use the development override in your `~/.terraformrc`:
+
+```hcl
+provider_installation {
+  dev_overrides {
+    "github.com/DonRobo/shelly-provider" = "/path/to/your/gopath/bin"
+  }
+  direct {}
+}
+```
 
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.23
+- [Go](https://golang.org/doc/install) >= 1.23 (for building from source)
+- Shelly devices on your local network
+
+## Documentation
+
+Detailed documentation for all resources and data sources is available in the [`docs/`](./docs/) directory.
 
 ## Building The Provider
 
 1. Clone the repository
-1. Enter the repository directory
-1. Build the provider using the Go `install` command:
+2. Enter the repository directory
+3. Build the provider using the Go `install` command:
 
 ```shell
 go install
 ```
 
-## Adding Dependencies
+## Development
+
+If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
+
+To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
+
+### Adding Dependencies
 
 This provider uses [Go modules](https://github.com/golang/go/wiki/Modules).
 Please see the Go documentation for the most up to date information about using Go modules.
@@ -43,17 +93,15 @@ go mod tidy
 
 Then commit the changes to `go.mod` and `go.sum`.
 
-## Using the provider
+### Documentation Generation
 
-Fill this in for each provider
+To generate or update documentation, run:
 
-## Developing the Provider
+```shell
+make generate
+```
 
-If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
-
-To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
-
-To generate or update documentation, run `make generate`.
+### Testing
 
 In order to run the full suite of Acceptance tests, run `make testacc`.
 
@@ -62,3 +110,12 @@ In order to run the full suite of Acceptance tests, run `make testacc`.
 ```shell
 make testacc
 ```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Acknowledgments
+
+- Built with the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework)
+- Uses the [go-shelly](https://github.com/jcodybaker/go-shelly) library for Shelly device communication
