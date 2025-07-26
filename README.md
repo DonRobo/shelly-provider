@@ -93,6 +93,15 @@ go mod tidy
 
 Then commit the changes to `go.mod` and `go.sum`.
 
+
+### Linting
+
+This project uses [golangci-lint](https://github.com/golangci/golangci-lint) for linting. Install it with:
+
+```shell
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.3.0
+```
+
 ### Documentation Generation
 
 To generate or update documentation, run:

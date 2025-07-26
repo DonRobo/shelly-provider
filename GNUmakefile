@@ -7,7 +7,7 @@ install: build
 	go install -v ./...
 
 lint:
-	golangci-lint run
+	$(shell go env GOPATH)/bin/golangci-lint run
 
 generate:
 	cd tools; go generate ./...
