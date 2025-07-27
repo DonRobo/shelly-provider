@@ -127,4 +127,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Acknowledgments
 
 - Built with the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework)
-- Uses the [go-shelly](https://github.com/jcodybaker/go-shelly) library for Shelly device communication
+- Uses structs from [go-shelly](https://github.com/jcodybaker/go-shelly) for Shelly device communication
+
