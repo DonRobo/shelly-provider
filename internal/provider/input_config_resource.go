@@ -125,7 +125,7 @@ func (c *inputConfigResource) Read(ctx context.Context, req resource.ReadRequest
 	resp.Diagnostics.Append(diags...)
 }
 
-func setInputConfig(ctx context.Context, plan inputConfigResourceModel, diags *diag.Diagnostics) error {
+func setInputConfig(plan inputConfigResourceModel, diags *diag.Diagnostics) error {
 	var inputConfig shelly.InputConfig
 	inputConfig.ID = int(plan.ID.ValueInt32())
 	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
@@ -164,7 +164,7 @@ func (c *inputConfigResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := setInputConfig(ctx, plan, &resp.Diagnostics); err != nil {
+	if err := setInputConfig(plan, &resp.Diagnostics); err != nil {
 		return
 	}
 	diags = resp.State.Set(ctx, &plan)
@@ -178,7 +178,7 @@ func (c *inputConfigResource) Update(ctx context.Context, req resource.UpdateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := setInputConfig(ctx, plan, &resp.Diagnostics); err != nil {
+	if err := setInputConfig(plan, &resp.Diagnostics); err != nil {
 		return
 	}
 	diags = resp.State.Set(ctx, &plan)

@@ -91,7 +91,7 @@ func (c *sysConfigResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 }
 
-func setSysConfig(ctx context.Context, plan sysConfigResourceModel, diags *diag.Diagnostics) error {
+func setSysConfig(plan sysConfigResourceModel, diags *diag.Diagnostics) error {
 	var sysConfig shelly.SysDeviceConfig
 	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
 		nameStr := plan.Name.ValueString()
@@ -124,7 +124,7 @@ func (c *sysConfigResource) Create(ctx context.Context, req resource.CreateReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := setSysConfig(ctx, plan, &resp.Diagnostics); err != nil {
+	if err := setSysConfig(plan, &resp.Diagnostics); err != nil {
 		return
 	}
 	diags = resp.State.Set(ctx, &plan)
@@ -138,7 +138,7 @@ func (c *sysConfigResource) Update(ctx context.Context, req resource.UpdateReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := setSysConfig(ctx, plan, &resp.Diagnostics); err != nil {
+	if err := setSysConfig(plan, &resp.Diagnostics); err != nil {
 		return
 	}
 	diags = resp.State.Set(ctx, &plan)
