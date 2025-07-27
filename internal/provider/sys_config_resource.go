@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 
+	shelly "github.com/DonRobo/go-shelly-lite"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -13,8 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/jcodybaker/go-shelly"
-	"github.com/mongoose-os/mos/common/mgrpc"
+	"resty.dev/v3"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -67,24 +67,23 @@ func (c *sysConfigResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	statusReq := &shelly.SysGetConfigRequest{}
-	errResult := error(nil)
-	WithShellyRPC(ctx, state.IP, &resp.Diagnostics, "SysConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
-		statusResp, _, err := statusReq.Do(ctxTimeout, client, nil)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to query device status", err.Error())
-			errResult = err
-			return err
-		}
-		if statusResp.Device.Name == nil {
-			state.Name = types.StringNull()
-		} else {
-			state.Name = types.StringValue(*statusResp.Device.Name)
-		}
-		return nil
-	})
-	if errResult != nil {
+
+	client := resty.New()
+	defer client.Close()
+	client.SetBaseURL("http://" + state.IP.ValueString())
+
+	statusResp, _, err := statusReq.Do(client)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to query device status", err.Error())
 		return
 	}
+
+	if statusResp.Device.Name == nil {
+		state.Name = types.StringNull()
+	} else {
+		state.Name = types.StringValue(*statusResp.Device.Name)
+	}
+
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -105,17 +104,17 @@ func setSysConfig(ctx context.Context, plan sysConfigResourceModel, diags *diag.
 		},
 	}
 
-	errResult := error(nil)
-	WithShellyRPC(ctx, plan.IP, diags, "SysConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
-		_, _, err := statusReq.Do(ctxTimeout, client, nil)
-		if err != nil {
-			diags.AddError("Failed to set sys config", err.Error())
-			errResult = err
-			return err
-		}
-		return nil
-	})
-	return errResult
+	client := resty.New()
+	defer client.Close()
+	client.SetBaseURL("http://" + plan.IP.ValueString())
+
+	_, _, err := statusReq.Do(client)
+	if err != nil {
+		diags.AddError("Failed to set device configuration", err.Error())
+		return err
+	}
+
+	return nil
 }
 
 func (c *sysConfigResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DonRobo/go-shelly-lite"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -19,8 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/jcodybaker/go-shelly"
-	"github.com/mongoose-os/mos/common/mgrpc"
+	"resty.dev/v3"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -101,33 +101,28 @@ func (c *inputConfigResource) Read(ctx context.Context, req resource.ReadRequest
 	statusReq := &shelly.InputGetConfigRequest{
 		ID: int(state.ID.ValueInt32()),
 	}
-	errResult := error(nil)
-	WithShellyRPC(ctx, state.IP, &resp.Diagnostics, "InputConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
-		statusResp, _, err := statusReq.Do(ctxTimeout, client, nil)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to query device status", err.Error())
-			errResult = err
-			return err
-		}
-		if statusResp.Name != nil {
-			state.Name = types.StringValue(*statusResp.Name)
-		}
-		if statusResp.Type != nil {
-			state.Type = types.StringValue(*statusResp.Type)
-		}
-		if statusResp.Invert != nil {
-			state.Invert = types.BoolValue(*statusResp.Invert)
-		}
-		return nil
-	})
-	if errResult != nil {
+
+	client := resty.New()
+	defer client.Close()
+	client.SetBaseURL("http://" + state.IP.ValueString())
+
+	statusResp, _, err := statusReq.Do(client)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to query device status", err.Error())
 		return
 	}
+	if statusResp.Name != nil {
+		state.Name = types.StringValue(*statusResp.Name)
+	}
+	if statusResp.Type != nil {
+		state.Type = types.StringValue(*statusResp.Type)
+	}
+	if statusResp.Invert != nil {
+		state.Invert = types.BoolValue(*statusResp.Invert)
+	}
+
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func setInputConfig(ctx context.Context, plan inputConfigResourceModel, diags *diag.Diagnostics) error {
@@ -148,23 +143,18 @@ func setInputConfig(ctx context.Context, plan inputConfigResourceModel, diags *d
 
 	enable := true
 	inputConfig.Enable = &enable
-	statusReq := &shelly.InputSetConfigRequest{
-		Config: inputConfig,
-	}
+	statusReq := &shelly.InputSetConfigRequest{Config: inputConfig}
 
-	//TODO consider moving the statusReq.Do call into WithShellyRPC
-	// to handle the connection and error handling in one place
-	errResult := error(nil)
-	WithShellyRPC(ctx, plan.IP, diags, "InputConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
-		_, _, err := statusReq.Do(ctxTimeout, client, nil)
-		if err != nil {
-			diags.AddError("Failed to set input config", err.Error())
-			errResult = err
-			return err
-		}
-		return nil
-	})
-	return errResult
+	client := resty.New()
+	defer client.Close()
+	client.SetBaseURL("http://" + plan.IP.ValueString())
+
+	_, _, err := statusReq.Do(client)
+	if err != nil {
+		diags.AddError("Failed to set input config", err.Error())
+		return err
+	}
+	return nil
 }
 
 func (c *inputConfigResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

@@ -5,13 +5,12 @@ package provider
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/DonRobo/go-shelly-lite"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/jcodybaker/go-shelly"
-	"github.com/mongoose-os/mos/common/mgrpc"
+	"resty.dev/v3"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -66,32 +65,28 @@ func (d *ShellyDeviceDataSource) Read(ctx context.Context, req datasource.ReadRe
 		return
 	}
 
-	WithShellyRPC(ctx, data.IP, &resp.Diagnostics, "ShellyDeviceDataSource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
-		statusReq := &shelly.SysGetConfigRequest{}
-		statusResp, _, err := statusReq.Do(ctxTimeout, client, nil)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to query device status", err.Error())
-			return err
-		}
+	client := resty.New()
+	defer client.Close()
+	client.SetBaseURL("http://" + data.IP.ValueString())
 
-		data.Version = types.StringValue(statusResp.Device.FW_ID)
-		if data.Version.IsNull() || data.Version.IsUnknown() || data.Version.ValueString() == "" {
-			resp.Diagnostics.AddError("Version not found", "Could not find valid firmware version in response.")
-			return fmt.Errorf("version not found")
-		}
+	statusReq := &shelly.SysGetConfigRequest{}
+	statusResp, _, err := statusReq.Do(client)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to query device status", err.Error())
+		return
+	}
 
-		data.MAC = types.StringValue(statusResp.Device.Mac)
-		if data.MAC.IsNull() || data.MAC.IsUnknown() || data.MAC.ValueString() == "" {
-			resp.Diagnostics.AddError("MAC address not found", "Could not find valid MAC address in response.")
-			return fmt.Errorf("mac not found")
-		}
+	data.Version = types.StringValue(statusResp.Device.FW_ID)
+	if data.Version.IsNull() || data.Version.IsUnknown() || data.Version.ValueString() == "" {
+		resp.Diagnostics.AddError("Version not found", "Could not find valid firmware version in response.")
+	}
 
-		// Write to state
-		diags = resp.State.Set(ctx, data)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return fmt.Errorf("state set error")
-		}
-		return nil
-	})
+	data.MAC = types.StringValue(statusResp.Device.Mac)
+	if data.MAC.IsNull() || data.MAC.IsUnknown() || data.MAC.ValueString() == "" {
+		resp.Diagnostics.AddError("MAC address not found", "Could not find valid MAC address in response.")
+	}
+
+	// Write to state
+	diags = resp.State.Set(ctx, data)
+	resp.Diagnostics.Append(diags...)
 }

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DonRobo/go-shelly-lite"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -18,8 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/jcodybaker/go-shelly"
-	"github.com/mongoose-os/mos/common/mgrpc"
+	"resty.dev/v3"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -113,31 +113,25 @@ func (c *switchConfigResource) Read(ctx context.Context, req resource.ReadReques
 	statusReq := &shelly.SwitchGetConfigRequest{
 		ID: int(state.ID.ValueInt32()),
 	}
-	errResult := error(nil)
-	WithShellyRPC(ctx, state.IP, &resp.Diagnostics, "SwitchConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
-		statusResp, _, err := statusReq.Do(ctxTimeout, client, nil)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to query device status", err.Error())
-			errResult = err
-			return err
-		}
-		state.Name = types.StringValue(*statusResp.Name)
-		state.InMode = types.StringValue(*statusResp.InMode)
-		state.InitialState = types.StringValue(*statusResp.InitialState)
-		//TODO state.ConsumptionType = types.StringValue(*statusResp.ConsumptionType)
-		return nil
-	})
-	if errResult != nil {
+	client := resty.New()
+	defer client.Close()
+	client.SetBaseURL("http://" + state.IP.ValueString())
+
+	statusResp, _, err := statusReq.Do(client)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to query device status", err.Error())
 		return
 	}
+	state.Name = types.StringValue(*statusResp.Name)
+	state.InMode = types.StringValue(*statusResp.InMode)
+	state.InitialState = types.StringValue(*statusResp.InitialState)
+	//TODO state.ConsumptionType = types.StringValue(*statusResp.ConsumptionType)
+
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
-func setSwitchConfig(ctx context.Context, plan switchConfigResourceModel, diags *diag.Diagnostics) error {
+func setSwitchConfig(plan switchConfigResourceModel, diags *diag.Diagnostics) error {
 	var switchConfig shelly.SwitchConfig
 	switchConfig.ID = int(plan.ID.ValueInt32())
 	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
@@ -161,19 +155,17 @@ func setSwitchConfig(ctx context.Context, plan switchConfigResourceModel, diags 
 		Config: switchConfig,
 	}
 
-	//TODO consider moving the statusReq.Do call into WithShellyRPC
-	// to handle the connection and error handling in one place
-	errResult := error(nil)
-	WithShellyRPC(ctx, plan.IP, diags, "SwitchConfigResource", func(ctxTimeout context.Context, client mgrpc.MgRPC) error {
-		_, _, err := statusReq.Do(ctxTimeout, client, nil)
-		if err != nil {
-			diags.AddError("Failed to set switch config", err.Error())
-			errResult = err
-			return err
-		}
-		return nil
-	})
-	return errResult
+	client := resty.New()
+	defer client.Close()
+	client.SetBaseURL("http://" + plan.IP.ValueString())
+
+	_, _, err := statusReq.Do(client)
+	if err != nil {
+		diags.AddError("Failed to set switch config", err.Error())
+		return err
+	}
+
+	return nil
 }
 
 func (c *switchConfigResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -183,7 +175,7 @@ func (c *switchConfigResource) Create(ctx context.Context, req resource.CreateRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := setSwitchConfig(ctx, plan, &resp.Diagnostics); err != nil {
+	if err := setSwitchConfig(plan, &resp.Diagnostics); err != nil {
 		return
 	}
 	diags = resp.State.Set(ctx, &plan)
@@ -197,7 +189,7 @@ func (c *switchConfigResource) Update(ctx context.Context, req resource.UpdateRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := setSwitchConfig(ctx, plan, &resp.Diagnostics); err != nil {
+	if err := setSwitchConfig(plan, &resp.Diagnostics); err != nil {
 		return
 	}
 	diags = resp.State.Set(ctx, &plan)
